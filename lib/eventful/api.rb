@@ -179,7 +179,7 @@ module Eventful
   # Default server port
   DEFAULT_PORT = 80 #:nodoc:
   # Default server path
-  DEFAULT_ROOT = '/yaml/' #:nodoc:
+  DEFAULT_ROOT = '/json/' #:nodoc:
 
   # Our POST data boundary
   BOUNDARY = '1E666D29B5E749F6A145BE8A576049E6' #:nodoc:
@@ -253,8 +253,9 @@ module Eventful
       # Grab our arguments
 
       @server = find_option [:server, :api_server], options, DEFAULT_SERVER
-      @root = find_option [:root, :api_root], options, DEFAULT_ROOT
       @port = find_option [:port, :api_port], options, DEFAULT_PORT
+      @root = find_option [:root, :api_root], options, DEFAULT_ROOT
+      @root.downcase!
 
       @http_user = find_option [:http_user, :auth_user], options
       @http_password = find_option [:http_password, :auth_password], options
@@ -353,14 +354,22 @@ module Eventful
       end
 
       # Raise an exception if we didn't get a 2xx response code
-      response.value
+      begin
+        response.value
+      rescue
+        raise APIError.new({string: response.code, description: response.message})
+      end
 
-      yaml = YAML::load response.body
+      resp = if @root["yaml"]
+        YAML::load response.body
+      elsif @root["json"]
+        JSON::parse response.body
+      end
 
       # Raise an error if we got an API error
-      raise APIError.new(yaml['error']) if yaml['error']
+      raise APIError.new(resp['error']) if resp['error']
 
-      return yaml
+      resp
     end
 
 
